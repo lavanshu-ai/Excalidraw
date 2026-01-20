@@ -8,7 +8,7 @@ import bcrypt from "bcrypt"
 const app=express();
 
 app.post("/signin",async(req:Request,res:Response)=>{
-  const data=await signinSchema.safeparse(req.body)
+  const data=await signinSchema.safeParse(req.body)
   if(!data.success){
     res.json({
       message:"Incorrect Input"
@@ -36,7 +36,7 @@ app.post("/signin",async(req:Request,res:Response)=>{
 
 })
 app.post("/signup",async(req:Request,res:Response)=>{
-  const data=await CreateUserSchema.safeparse(req.body)
+  const data=await CreateUserSchema.safeParse(req.body)
   if(!data.success){
     res.json({
       message:"Incorrect Input"
@@ -45,16 +45,24 @@ app.post("/signup",async(req:Request,res:Response)=>{
   }
    const {email,password,name}=req.body;
    const hashedPassword=bcrypt.hash(password,108)
-    await prisma.user.create({
+   try{
+     await prisma.user.create({
       data:{
         name,
         email,
         password:hashedPassword
       }
-    })
+    })}
+    catch{
+      res.status(411).json({
+        message:"user already exist with this user name"
+      })
+    }
 })
+   
+   
 app.post("/room",middleware,async(req:Request,res:Response)=>{
-const data=await roomSchema.safeparse(req.body)
+const data=await roomSchema.safeParse(req.body)
   if(!data.success){
     res.json({
       message:"Incorrect Input"
