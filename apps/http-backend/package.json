@@ -14,7 +14,9 @@
   "dependencies": {
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
-    "http": "0.0.1-security"
+    "http": "0.0.1-security",
+    "@repo/db":"workspace:*"
+
   },
   "keywords": [],
   "author": "",

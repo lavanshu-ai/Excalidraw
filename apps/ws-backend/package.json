@@ -14,7 +14,9 @@
   "dependencies": {
      "@types/ws": "^8.18.1",
     "http": "0.0.1-security",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "@repo/db":"workspace:*"
+
   },
   "keywords": [],
   "author": "",
