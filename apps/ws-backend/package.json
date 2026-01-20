@@ -4,19 +4,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-     "build":"npx tsc -b",
-    "dev":"tsc -b && node dist/index.js",
+    "build": "npx tsc -b",
+    "dev": "tsc -b && node dist/index.js",
     "start": "node dist/index.js"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*"
   },
   "dependencies": {
-     "@types/ws": "^8.18.1",
+    "@repo/db": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/ws": "^8.18.1",
     "http": "0.0.1-security",
-    "ws": "^8.19.0",
-    "@repo/db":"workspace:*"
-
+    "jsonwebtoken": "^9.0.3",
+    "ws": "^8.19.0"
   },
   "keywords": [],
   "author": "",

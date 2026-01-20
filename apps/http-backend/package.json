@@ -12,11 +12,14 @@
     "@repo/typescript-config": "workspace:*"
   },
   "dependencies": {
+    "@repo/db": "workspace:*",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "bcrypt": "^6.0.0",
     "express": "^5.2.1",
     "http": "0.0.1-security",
-    "@repo/db":"workspace:*"
-
+    "jsonwebtoken": "^9.0.3"
   },
   "keywords": [],
   "author": "",
