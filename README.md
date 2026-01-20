@@ -1,135 +1,177 @@
-# Turborepo starter
+# Excalidraw Clone (Multi‑User, Realtime)
 
-This Turborepo starter is maintained by the Turborepo core team.
+A collaborative whiteboard inspired by **Excalidraw**, built to support **multiple concurrent users** with **realtime sync via WebSockets**, organized as a **Turborepo monorepo**.
 
-## Using this example
+This project focuses on correctness, scalability, and clean separation of concerns between frontend, backend, and shared packages.
 
-Run the following command:
+---
 
-```sh
-npx create-turbo@latest
-```
+## Features
 
-## What's inside?
+*  Real‑time collaborative drawing
 
-This Turborepo includes the following packages/apps:
+*  Multiple users editing the same canvas
 
-### Apps and Packages
+*  Live sync using WebSockets
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+* Monorepo architecture with Turborepo
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+* Shared types and utilities across apps
 
-### Utilities
+* Fast local development with incremental builds
 
-This Turborepo has some additional tools already setup for you:
+---
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+## Tech Stack
 
-### Build
+### Frontend
 
-To build all apps and packages, run the following command:
+* Next
+* TypeScript
+* HTML Canvas / SVG
+* WebSocket client
 
-```
-cd my-turborepo
+### Backend
 
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
+* Node.js
+* TypeScript
+* WebSocket server (`ws` or equivalent)
+* HTTP server for health/auth (optional)
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
-```
+### Monorepo Tooling
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+* Turborepo
+* pnpm
+* Shared ESLint & TypeScript configs
+
+---
+
+## Repository Structure
 
 ```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+.
+├── apps/
+│   ├── web/                # Frontend (Next.js)
+│   ├── http-backend/       # HTTP server (health, auth, REST)
+│   └── ws-backend/         # WebSocket server (realtime sync)
+│
+├── packages/
+│   ├── ui/                 # Shared UI components
+│   ├── types/              # Shared TypeScript types
+│   ├── eslint-config/      # Shared ESLint config
+│   └── tsconfig/           # Shared TS configs
+│
+├── turbo.json
+├── package.json
+├── pnpm-workspace.yaml
+└── README.md
 ```
 
-### Develop
+---
 
-To develop all apps and packages, run the following command:
+## How Realtime Collaboration Works
 
-```
-cd my-turborepo
+1. Each client connects to the backend via WebSocket.
+2. A **room / board ID** identifies a shared canvas.
+3. Drawing actions are sent as **events**, not full canvas snapshots.
+4. The server broadcasts validated events to all connected clients in the room.
+5. Clients apply events deterministically to keep state in sync.
 
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+This avoids heavy payloads and keeps latency low.
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
+---
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## WebSocket Event Model (Example)
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+* `join_room`
+* `leave_room`
+* `draw_start`
+* `draw_update`
+* `draw_end`
+* `clear_canvas`
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
+All events use shared TypeScript types from `packages/types` to guarantee consistency.
 
-### Remote Caching
+---
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+## Local Development
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+### Install Dependencies
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```bash
+pnpm install
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+### Start All Apps
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```bash
+pnpm dev
 ```
 
-## Useful Links
+This runs frontend and backend in parallel using Turborepo.
 
-Learn more about the power of Turborepo:
+### Start Individual Apps
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+```bash
+pnpm --filter web dev
+pnpm --filter http-backend dev
+```
+
+---
+
+## Environment Variables
+
+### Backend (`apps/http-backend/.env`)
+
+```
+PORT=3001
+WS_PATH=/ws
+```
+
+### Frontend (`apps/web/.env`)
+
+```
+VITE_WS_URL=ws://localhost:3001/ws
+```
+
+---
+
+## Shared Packages
+
+### `@repo/types`
+
+* WebSocket event types
+* Drawing primitives
+* Room and user models
+
+### `@repo/ui`
+
+* Reusable buttons, inputs, toolbars
+* Canvas controls
+
+Using shared packages eliminates frontend/backend drift.
+
+---
+
+## Turborepo Tasks
+
+Defined in `turbo.json`:
+
+* `dev` – run apps in watch mode
+* `build` – production builds with caching
+* `lint` – shared lint rules
+* `typecheck` – strict TypeScript validation
+
+Turborepo ensures only affected packages rebuild.
+
+---
+
+## Future Improvements
+
+* Canvas persistence (Redis / DB)
+* User authentication
+* Presence indicators (cursors, usernames)
+* Undo/redo with operation history
+* Access control per board
+
+##
