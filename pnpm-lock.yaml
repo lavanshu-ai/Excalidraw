@@ -11,6 +11,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.15.3
     devDependencies:
       prettier:
         specifier: ^3.7.4
@@ -27,6 +30,12 @@ importers:
 
   apps/http-backend:
     dependencies:
+      '@repo/backend-common':
+        specifier: workspace:*
+        version: link:../../packages/backend-common
+      '@repo/common':
+        specifier: workspace:*
+        version: link:../../packages/common
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -95,6 +104,12 @@ importers:
 
   apps/ws-backend:
     dependencies:
+      '@repo/backend-common':
+        specifier: workspace:*
+        version: link:../../packages/backend-common
+      '@repo/common':
+        specifier: workspace:*
+        version: link:../../packages/common
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -117,6 +132,26 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+
+  packages/backend-common:
+    dependencies:
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.15.3
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+
+  packages/common:
+    dependencies:
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.15.3
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/db:
     dependencies:
