@@ -3,12 +3,7 @@ import WebSocket,{WebSocketServer} from "ws"
 import jwt, { JwtPayload } from "jsonwebtoken"
 import {JWT_SECRET} from "@repo/backend-common"
 
-interface User {
-  ws:WebSocket,
-  userId:string,
-  rooms:string[]
-}
-const users:User[]=[];
+export const connectionMap=new Map<string,WebSocket>();
 const wss=new WebSocketServer({port:8080});
 
 function CheckUser(token:string):string | null{
@@ -34,12 +29,7 @@ wss.on('connection',function connection(ws,request){
     ws.close();
     return null;
   }
-  users.push({
-    ws,
-    rooms:[],
-    userId
-
-  })
+  connectionMap.set(userId,ws);
   ws.on('message', function message(data,isBinary){
     wss.clients.forEach(function each(client){
       if(client.readyState===WebSocket.OPEN){
