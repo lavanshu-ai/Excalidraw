@@ -10,7 +10,7 @@ export class RoomManager{
  private async init (){
     console.log("connected to redis client")
  }
-  static getTnstance(){
+  static getInstance(){
     if(!RoomManager.instance){
       RoomManager.instance=new RoomManager();
     }

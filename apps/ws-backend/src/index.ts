@@ -30,10 +30,11 @@ wss.on('connection',function connection(ws,request){
     return null;
   }
   connectionMap.set(userId,ws);
-  ws.on('message', function message(data,isBinary){
+  ws.on('message', function message(data,){
+    const parsedData=JSON.parse(data.toString());
     wss.clients.forEach(function each(client){
       if(client.readyState===WebSocket.OPEN){
-        client.send(data,{binary:isBinary})
+        client.send(data)
       }
     })
   })
