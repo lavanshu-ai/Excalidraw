@@ -2,6 +2,7 @@ import { URLSearchParams } from "url"
 import WebSocket,{WebSocketServer} from "ws"
 import jwt, { JwtPayload } from "jsonwebtoken"
 import {JWT_SECRET} from "@repo/backend-common"
+import { RoomManager } from "./store";
 
 export const connectionMap=new Map<string,WebSocket>();
 const wss=new WebSocketServer({port:8080});
@@ -32,6 +33,29 @@ wss.on('connection',function connection(ws,request){
   connectionMap.set(userId,ws);
   ws.on('message', function message(data,){
     const parsedData=JSON.parse(data.toString());
+    switch(parsedData.type){
+      case "CREATE_ROOM":{
+        RoomManager.getInstance().CreateRoom(userId,parsedData.roomId);
+      break;
+      }
+       case "JOIN_ROOM":{
+        RoomManager.getInstance().JoinRoom(userId,parsedData.roomId);
+      break;
+      }
+       case "LEAVE_ROOM":{
+        RoomManager.getInstance().LeaveRoom(userId,parsedData.roomId);
+      break;
+      }
+       case "REMOVE_ROOM":{
+        RoomManager.getInstance().RemoveRoom(userId,parsedData.roomId);
+      break;
+      }
+       case "CHAT":{
+        RoomManager.getInstance().Chat(parsedData.roomId,parsedData.payload);
+      break;
+      }
+    }
+    
     wss.clients.forEach(function each(client){
       if(client.readyState===WebSocket.OPEN){
         client.send(data)
