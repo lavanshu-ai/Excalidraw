@@ -3,18 +3,28 @@ import  {RedisClientType,createClient} from "redis";
 export class RoomManager{
 
   private static instance:RoomManager;
-  private Rooms :Map<string,{adminId:string,users:Set<string>}>;
+  private subscriptions:Set<string>;
   private SubClient:RedisClientType;
   private PubClient:RedisClientType;
+  private dbClient:RedisClientType;
+  private ready:Promise<void>;
   private constructor(){
     this.SubClient= createClient();
     this.PubClient= createClient();
-    this.Rooms=new Map();
-    this.init();
+    this.dbClient=createClient();
+    this.subscriptions=new Set();
+    this.ready=this.init();
   }
   private async init(){
-    await this.PubClient.connect();
-    await this.SubClient.connect();
+    try{
+      await this.PubClient.connect();
+      await this.SubClient.connect();
+      await this.dbClient.connect();
+    }
+    catch(e){
+      console.error("redis connection failed ", e)
+    }
+    
   }
   static getInstance(){
     if(!RoomManager.instance){
@@ -22,75 +32,120 @@ export class RoomManager{
     }
     return RoomManager.instance
   }
+  public async waitReady(){
+    await this.ready;//we get ready when init(promise) is completed
+  }
 
-  CreateRoom(userId:string,roomId:string){
+  async CreateRoom(userId:string,roomId:string){
     if(!roomId) return;
-    if(this.Rooms.has(roomId)){
+    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){
       console.log('room already exist')
       return; 
     }
     const u:Set<string>= new Set();
     u.add(userId)
-    this.Rooms.set(roomId,{adminId:userId,users:u});
+    try {
+    await this.dbClient.multi()
+    .set(`room:${roomId}:admin`,userId)
+    .sAdd(`room:${roomId}:users`,userId)
+    .exec();
+    }catch(e){
+      console.error("failed to create room",e)
+    }
     this.SubClient.subscribe(roomId,(m)=>{
       this.Chat(roomId,m)
-    })
+    }) 
+    this.subscriptions.add(roomId);
   }
-  JoinRoom(userId:string,roomId:string){
-    const room=this.Rooms.get(roomId);
-    if(!room){ 
+  async JoinRoom(userId:string,roomId:string){
+    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){ 
       console.log("no room with name "+ roomId)
       return;
     }
-    room.users.add(userId);
-     this.SubClient.subscribe(roomId,(m)=>{
-      this.Chat(roomId,m)
+    try {
+      await this.dbClient.sAdd(`room:${roomId}:users`,userId)
+    }
+    catch(e){
+      console.error('failed to join',e)
+    }
+    if(!this.subscriptions.has(roomId)){
+      this.SubClient.subscribe(roomId,(m)=>{
+      this.Chat(roomId,m) 
     })
+    }
   }
-  Publish(userId:string,roomId:string,message:string){
-    const room = this.Rooms.get(roomId);
-    if(!room) return;
-    if(!room.users.has(userId)){
+  async Publish(userId:string,roomId:string,message:string){
+    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){ 
+      console.log("no room with name "+ roomId)
+      return;
+    }
+    const isMember=!await this.dbClient.sIsMember(`room:${roomId}:users`,userId)
+    if(isMember){
       console.log('You are not part of this room')
       return;
     }
     return this.PubClient.publish(roomId,JSON.stringify({
-      from:userId
+      from:userId,
+      message,
+      time:new Date()
     }))
   }
-  LeaveRoom(userId:string,roomId:string){
-     const room=this.Rooms.get(roomId);
-    if(!room){ 
+  async LeaveRoom(userId:string,roomId:string){
+   const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){ 
       console.log("no room with name "+ roomId)
       return;
     }
-    room.users.delete(userId);
-     if (room.adminId === userId) {
-    room.adminId = room.users.values().next().value ?? ""; //Set.values() returns an iterator.Gets the first element directly, without creating an array.
-  }
-
-    if(room.users.size==0){
-      this.RemoveRoom(roomId,userId)
-    }    
-  }
-  RemoveRoom(roomId:string,userId:string){
-    const room=this.Rooms.get(roomId);
-    if(!room){
-      console.log("no room with name "+ roomId)
-      return
+    await this.dbClient.sRem(`room:${roomId}:users`,userId) //room.users.delete(userId);
+    //room.adminId = room.users.values().next().value ?? ""; //next().value returns an iterator.Gets the first element directly, without creating an array.
+    const admin=await this.dbClient.get(`room:${roomId}:admin`)
+    if(admin===userId){
+      const newAdmin=await this.dbClient.sRandMember(`room:${roomId}:users`);
+      if(newAdmin){
+        await this.dbClient.set(`room:${roomId}:admin`,newAdmin)
+      }
+      else{
+        this.RemoveRoom(roomId)
+      }
     }
-    if(userId===room.adminId||room.users.size===0){
-    this.Rooms.delete(roomId);
+  }
+  private async RemoveRoom(roomId:string){
+    await this.dbClient.multi()
+    .del(`room:${roomId}:admin`)
+    .del(`room:${roomId}:users`)
+    .exec();
+  }
+  async adminRemoveRoom(roomId:string,userId:string){
+   const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){ 
+      console.log("no room with name "+ roomId)
+      return;
+    }
+    const admin=await this.dbClient.get(`room:${roomId}:admin`)
+    if(userId===admin){
+      try{
+     await this.dbClient.multi()
+    .del(`room:${roomId}:admin`)
+    .del(`room:${roomId}:users`)
+    .exec();
+      }catch(e){
+
+      }
+   
     this.SubClient.unsubscribe(roomId)
     }
   }
-  Chat(roomId:string,payload:string){
-    const room=this.Rooms.get(roomId)
-    if(!room){
-      console.log("no room exist")
-      return
+  async Chat(roomId:string,payload:string){
+    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
+    if(!exists){ 
+      console.log("no room with name "+ roomId)
+      return;
     }
-    room.users.forEach((id)=>{
+    const users=await this.dbClient.get(`room:${roomId}:users`)
+    users.forEach((id)=>{
       const ws=connectionMap.get(id);
       if(ws && ws?.readyState===WebSocket.OPEN){
         ws?.send(JSON.stringify({

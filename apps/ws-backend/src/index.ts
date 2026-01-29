@@ -47,7 +47,7 @@ wss.on('connection',function connection(ws,request){
       break;
       }
        case "REMOVE_ROOM":{
-        RoomManager.getInstance().RemoveRoom(userId,parsedData.roomId);
+        RoomManager.getInstance().adminRemoveRoom(userId,parsedData.roomId);
       break;
       }
        case "CHAT":{
