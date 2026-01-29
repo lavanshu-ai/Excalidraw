@@ -1,9 +1,12 @@
 import { connectionMap } from ".";
 import  {RedisClientType,createClient} from "redis";
+import { WebSocket } from "ws";
+
 export class RoomManager{
 
   private static instance:RoomManager;
   private subscriptions:Set<string>;
+  private RoomSockets:Map<string,Set<WebSocket>>;
   private SubClient:RedisClientType;
   private PubClient:RedisClientType;
   private dbClient:RedisClientType;
@@ -13,6 +16,7 @@ export class RoomManager{
     this.PubClient= createClient();
     this.dbClient=createClient();
     this.subscriptions=new Set();
+    this.RoomSockets=new Map();
     this.ready=this.init();
   }
   private async init(){
@@ -33,13 +37,13 @@ export class RoomManager{
     return RoomManager.instance
   }
   public async waitReady(){
-    await this.ready;//we get ready when init(promise) is completed
+    await this.ready;         //we get ready when init(promise) is completed
   }
 
   async CreateRoom(userId:string,roomId:string){
     if(!roomId) return;
     const exists=await this.dbClient.exists(`room:${roomId}:admin`)
-    if(!exists){
+    if(exists){
       console.log('room already exist')
       return; 
     }
@@ -53,24 +57,29 @@ export class RoomManager{
     }catch(e){
       console.error("failed to create room",e)
     }
-    this.SubClient.subscribe(roomId,(m)=>{
-      this.Chat(roomId,m)
-    }) 
-    this.subscriptions.add(roomId);
+    this.RoomSockets.set(roomId,new Set())
+     const userSocket=connectionMap.get(userId)
+    if(!userSocket) return;
+    this.RoomSockets.get(roomId)?.add(userSocket)
+   
   }
-  async JoinRoom(userId:string,roomId:string){
+  async JoinRoom(userId:string,roomId:string,ws:WebSocket){
     const exists=await this.dbClient.exists(`room:${roomId}:admin`)
     if(!exists){ 
       console.log("no room with name "+ roomId)
       return;
     }
+    
+    this.RoomSockets.get(roomId)?.add(ws)
     try {
       await this.dbClient.sAdd(`room:${roomId}:users`,userId)
     }
     catch(e){
       console.error('failed to join',e)
     }
+   
     if(!this.subscriptions.has(roomId)){
+      this.subscriptions.add(roomId);
       this.SubClient.subscribe(roomId,(m)=>{
       this.Chat(roomId,m) 
     })
@@ -82,26 +91,29 @@ export class RoomManager{
       console.log("no room with name "+ roomId)
       return;
     }
-    const isMember=!await this.dbClient.sIsMember(`room:${roomId}:users`,userId)
-    if(isMember){
+    const isMember=await this.dbClient.sIsMember(`room:${roomId}:users`,userId)
+    if(!isMember){
       console.log('You are not part of this room')
       return;
     }
     return this.PubClient.publish(roomId,JSON.stringify({
       from:userId,
       message,
-      time:new Date()
+      time:Date.now()
     }))
   }
-  async LeaveRoom(userId:string,roomId:string){
+  async LeaveRoom(userId:string,roomId:string,ws:WebSocket){
    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
     if(!exists){ 
       console.log("no room with name "+ roomId)
       return;
     }
-    await this.dbClient.sRem(`room:${roomId}:users`,userId) //room.users.delete(userId);
+    await this.dbClient.sRem(`room:${roomId}:users`,userId) 
     //room.adminId = room.users.values().next().value ?? ""; //next().value returns an iterator.Gets the first element directly, without creating an array.
     const admin=await this.dbClient.get(`room:${roomId}:admin`)
+   
+    this.RoomSockets.get(roomId)?.delete(ws);
+    
     if(admin===userId){
       const newAdmin=await this.dbClient.sRandMember(`room:${roomId}:users`);
       if(newAdmin){
@@ -138,15 +150,13 @@ export class RoomManager{
     this.SubClient.unsubscribe(roomId)
     }
   }
-  async Chat(roomId:string,payload:string){
-    const exists=await this.dbClient.exists(`room:${roomId}:admin`)
-    if(!exists){ 
-      console.log("no room with name "+ roomId)
+  private async Chat(roomId:string,payload:string){
+    const sockets=this.RoomSockets.get(roomId)
+    if(!sockets){
+      console.log('message failed')
       return;
     }
-    const users=await this.dbClient.get(`room:${roomId}:users`)
-    users.forEach((id)=>{
-      const ws=connectionMap.get(id);
+    sockets.forEach((ws)=>{
       if(ws && ws?.readyState===WebSocket.OPEN){
         ws?.send(JSON.stringify({
         type:"Chat",
@@ -159,5 +169,7 @@ export class RoomManager{
    public async disconnect() {
         await this.SubClient.quit();
         await this.PubClient.quit();
+        await this.dbClient.quit();
+
     }
 }

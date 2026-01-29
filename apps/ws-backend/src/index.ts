@@ -39,21 +39,18 @@ wss.on('connection',function connection(ws,request){
       break;
       }
        case "JOIN_ROOM":{
-        RoomManager.getInstance().JoinRoom(userId,parsedData.roomId);
+        RoomManager.getInstance().JoinRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "LEAVE_ROOM":{
-        RoomManager.getInstance().LeaveRoom(userId,parsedData.roomId);
+        RoomManager.getInstance().LeaveRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "REMOVE_ROOM":{
         RoomManager.getInstance().adminRemoveRoom(userId,parsedData.roomId);
       break;
       }
-       case "CHAT":{
-        RoomManager.getInstance().Chat(parsedData.roomId,parsedData.payload);
-      break;
-      }
+     
     }
     
     wss.clients.forEach(function each(client){
