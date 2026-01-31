@@ -1,11 +1,9 @@
-import { connectionMap } from ".";
 import  {RedisClientType,createClient} from "redis";
 import { WebSocket } from "ws";
 
 export class RoomManager{
 
   private static instance:RoomManager;
-  private subscriptions:Set<string>;
   private RoomSockets:Map<string,Set<WebSocket>>;
   private SubClient:RedisClientType;
   private PubClient:RedisClientType;
@@ -15,7 +13,6 @@ export class RoomManager{
     this.SubClient= createClient();
     this.PubClient= createClient();
     this.dbClient=createClient();
-    this.subscriptions=new Set();
     this.RoomSockets=new Map();
     this.ready=this.init();
   }
@@ -40,15 +37,12 @@ export class RoomManager{
     await this.ready;         //we get ready when init(promise) is completed
   }
 
-  async CreateRoom(userId:string,roomId:string){
-    if(!roomId) return;
+  async CreateRoom(userId:string,roomId:string,ws:WebSocket){
     const exists=await this.dbClient.exists(`room:${roomId}:admin`)
     if(exists){
       console.log('room already exist')
       return; 
     }
-    const u:Set<string>= new Set();
-    u.add(userId)
     try {
     await this.dbClient.multi()
     .set(`room:${roomId}:admin`,userId)
@@ -57,33 +51,46 @@ export class RoomManager{
     }catch(e){
       console.error("failed to create room",e)
     }
-    this.RoomSockets.set(roomId,new Set())
-     const userSocket=connectionMap.get(userId)
-    if(!userSocket) return;
-    this.RoomSockets.get(roomId)?.add(userSocket)
-   
+    try{
+    await this.JoinRoom(userId,roomId,ws);
+    }
+    catch(e){
+      await this.RemoveRoom(roomId)
+      console.error("failed to create room",e)
+    }
   }
   async JoinRoom(userId:string,roomId:string,ws:WebSocket){
     const exists=await this.dbClient.exists(`room:${roomId}:admin`)
     if(!exists){ 
       console.log("no room with name "+ roomId)
       return;
-    }
-    
-    this.RoomSockets.get(roomId)?.add(ws)
+    } 
+    const set = this.RoomSockets.get(roomId);
+
+      if (set?.has(ws)) {
+        console.log("already in room")      
+          return;
+        }
+
     try {
       await this.dbClient.sAdd(`room:${roomId}:users`,userId)
     }
     catch(e){
-      console.error('failed to join',e)
+      console.error('failed to join',e);
+      return;
     }
-   
-    if(!this.subscriptions.has(roomId)){
-      this.subscriptions.add(roomId);
-      this.SubClient.subscribe(roomId,(m)=>{
+    if(!this.RoomSockets.has(roomId)){
+      const set = new Set<WebSocket>();
+      //this act as a lock if parallel join req come doble subscribe can be avoided as condition become true.
+      this.RoomSockets.set(roomId,set)
+      await this.SubClient.subscribe(roomId,(m)=>{
       this.Chat(roomId,m) 
     })
     }
+    this.RoomSockets.get(roomId)?.add(ws);
+    ws.on('close',async ()=>{
+      await this.LeaveRoom(userId,roomId,ws)
+    })   
   }
   async Publish(userId:string,roomId:string,message:string){
     const exists=await this.dbClient.exists(`room:${roomId}:admin`)
@@ -108,11 +115,20 @@ export class RoomManager{
       console.log("no room with name "+ roomId)
       return;
     }
+    try {
     await this.dbClient.sRem(`room:${roomId}:users`,userId) 
-    //room.adminId = room.users.values().next().value ?? ""; //next().value returns an iterator.Gets the first element directly, without creating an array.
-    const admin=await this.dbClient.get(`room:${roomId}:admin`)
-   
-    this.RoomSockets.get(roomId)?.delete(ws);
+    }catch(e){
+      console.log('failed to leave room try again',e)
+    }
+    const set=this.RoomSockets.get(roomId);
+    if(!set) return;
+    set.delete(ws);
+    if(set.size===0){
+      this.RoomSockets.delete(roomId);
+     await  this.SubClient.unsubscribe(roomId);
+    }
+    try{
+      const admin=await this.dbClient.get(`room:${roomId}:admin`)    
     
     if(admin===userId){
       const newAdmin=await this.dbClient.sRandMember(`room:${roomId}:users`);
@@ -120,8 +136,11 @@ export class RoomManager{
         await this.dbClient.set(`room:${roomId}:admin`,newAdmin)
       }
       else{
-        this.RemoveRoom(roomId)
+       await this.RemoveRoom(roomId);
       }
+    }
+    }catch(e){
+      console.log('failed update admin',e)
     }
   }
   private async RemoveRoom(roomId:string){
@@ -146,8 +165,10 @@ export class RoomManager{
       }catch(e){
 
       }
-   
-    this.SubClient.unsubscribe(roomId)
+    if(this.RoomSockets.has(roomId)){
+      this.RoomSockets.delete(roomId)
+    }
+    await this.SubClient.unsubscribe(roomId)
     }
   }
   private async Chat(roomId:string,payload:string){
@@ -162,7 +183,7 @@ export class RoomManager{
         type:"Chat",
         message:payload,
         roomId
-      }))
+      })) 
       }      
     }) 
   }

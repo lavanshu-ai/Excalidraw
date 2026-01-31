@@ -31,11 +31,12 @@ wss.on('connection',function connection(ws,request){
     return null;
   }
   connectionMap.set(userId,ws);
-  ws.on('message', function message(data,){
+  ws.on('message',async  function message(data,){
+    await RoomManager.getInstance().waitReady();
     const parsedData=JSON.parse(data.toString());
     switch(parsedData.type){
       case "CREATE_ROOM":{
-        RoomManager.getInstance().CreateRoom(userId,parsedData.roomId);
+        RoomManager.getInstance().CreateRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "JOIN_ROOM":{
