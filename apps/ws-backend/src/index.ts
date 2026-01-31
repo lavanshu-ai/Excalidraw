@@ -4,19 +4,23 @@ import jwt, { JwtPayload } from "jsonwebtoken"
 import {JWT_SECRET} from "@repo/backend-common"
 import { RoomManager } from "./store";
 
-export const connectionMap=new Map<string,WebSocket>();
 const wss=new WebSocketServer({port:8080});
 
 function CheckUser(token:string):string | null{
- 
-  const decoded=jwt.verify(token,JWT_SECRET)
+ try {
+  const decoded=jwt.verify(token,JWT_SECRET) as JwtPayload;
     if(typeof decoded=="string"){
       return null;
     }
     if(!decoded || !decoded.userId){
       return null;
     }
- return decoded.userId;
+  return decoded.userId;
+ }
+  catch(e){
+    console.log('invalid token',e)
+    return null
+  }
 }
 wss.on('connection',function connection(ws,request){
   ws.on('error',console.error);
@@ -30,35 +34,39 @@ wss.on('connection',function connection(ws,request){
     ws.close();
     return null;
   }
-  connectionMap.set(userId,ws);
   ws.on('message',async  function message(data,){
     await RoomManager.getInstance().waitReady();
-    const parsedData=JSON.parse(data.toString());
+    let parsedData;
+    try{
+     parsedData=JSON.parse(data.toString());
+    }catch(e){
+      console.log("invalid message",e)
+      return;
+    }
     switch(parsedData.type){
       case "CREATE_ROOM":{
-        RoomManager.getInstance().CreateRoom(userId,parsedData.roomId,ws);
+        if (!parsedData.roomId) return;
+        await RoomManager.getInstance().CreateRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "JOIN_ROOM":{
-        RoomManager.getInstance().JoinRoom(userId,parsedData.roomId,ws);
+        if (!parsedData.roomId) return;
+        await RoomManager.getInstance().JoinRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "LEAVE_ROOM":{
-        RoomManager.getInstance().LeaveRoom(userId,parsedData.roomId,ws);
+        if (!parsedData.roomId) return;
+       await RoomManager.getInstance().LeaveRoom(userId,parsedData.roomId,ws);
       break;
       }
        case "REMOVE_ROOM":{
-        RoomManager.getInstance().adminRemoveRoom(userId,parsedData.roomId);
+        if (!parsedData.roomId) return;
+       await RoomManager.getInstance().adminRemoveRoom(parsedData.roomId,userId);
       break;
-      }
-     
+      }   
+      default:
+     console.log("unknown type", parsedData.type);
     }
-    
-    wss.clients.forEach(function each(client){
-      if(client.readyState===WebSocket.OPEN){
-        client.send(data)
-      }
-    })
   })
   ws.send('ping')
 })
