@@ -98,7 +98,28 @@ const parseddata=roomSchema.safeParse(req.body)
       messag:"can,t create room !try another name"
     })
   }
-  
+})
+app.get("/chat/:roomId",async (req,res)=>{
+    const roomId=Number(req.params.roomId)
+    const messages=await prisma.Chat.findMany({
+      where:{
+        roomId
+      },
+      orderBy:{
+        id:"desc"
+      },
+      take:50
+    })
+    res.json({messages})
+})
+app.get("room/:slug",async (req ,res)=>{
+  const slug=req.params.slug.toString();
+  const room=await prisma.Room.findFirst({
+    where:{
+      slug
+    }
+  })
+  res.json({roomId:room.roomId})
 })
 
 app.listen(3003,()=>{

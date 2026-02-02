@@ -105,8 +105,8 @@ export class RoomManager{
     }
     return this.PubClient.publish(roomId,JSON.stringify({
       from:userId,
-      message,
-      time:Date.now()
+      message:message,
+      time:Date.now().toLocaleString()
     }))
   }
   async LeaveRoom(userId:string,roomId:string,ws:WebSocket){
